@@ -54,6 +54,7 @@
 :- use_module(library(lists)).
 :- use_module(library(option)).
 :- use_module(library(prolog_stack)).
+:- use_module(library(call_ref)).
 :- use_module(library(qualify_meta_goal)).
 :- use_module(library(resolve_calln)).
 :- use_module(library(solution_sequences)).
@@ -745,7 +746,7 @@ match_head(MGoal, M:true) -->
 match_head_body(MGoal, CMBody, From) :-
     ( extra_clauses(MGoal, CMBody, From)
     ; From = clause(Ref),
-      clause(MGoal, Body, Ref),
+      call_ref(MGoal, Body, Ref),
       clause_property(Ref, module(CM)),
       CMBody = CM:Body
     ).
