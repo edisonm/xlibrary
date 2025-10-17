@@ -38,8 +38,8 @@
           ]).
 
 :- meta_predicate
-        call_ref(0, -),
-        call_ref(0, -, -).
+        call_ref(:, -),
+        call_ref(:, -, -).
 
 call_ref(Head, Ref) :-
     call_ref(Head, Body, Ref),
