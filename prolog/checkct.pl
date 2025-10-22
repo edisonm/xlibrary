@@ -69,7 +69,8 @@ term_expansion(end_of_file, _) :-
     in_module_file,
     forall(distinct([File, Line, Issues, PI, Loc],
                     ( retract(issue_found(File, Line, Issues, PI, Loc1)),
-                      clause_pc_location(Loc1, Loc)
+                      clause_pc_location(Loc1, Loc),
+                      PI \= arithmetic:evaluable/2
                     )),
            print_message(
                warning,
