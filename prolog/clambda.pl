@@ -94,7 +94,7 @@ check_singletons(Goal, Term) :-
     ).
 
 prolog:message(local_variables_outside(Names, Goal, Bindings)) -->
-    [ 'Local variables ~w should not occurs outside lambda expression: ~W'
+    [ 'Local variables ~w should not occur outside lambda expression: ~W'
     -[Names, Goal, [variable_names(Bindings)]] ].
 
 lambdaize_args(G, A1, M, VL, Ex, A) :-
