@@ -141,8 +141,11 @@ real_compare(A, C, B) :- near_compare(C, A, B).
 repsilon(E) :- E is 1024*epsilon.
 
 repsilon(N, E) :-
-    repsilon(R),
-    E is R*N.
+    ( N =:= inf
+    ->E = 0
+    ; repsilon(R),
+      E is R*N
+    ).
 
 near_compare(Comparator, A, B) :-
     ( A =:= B
