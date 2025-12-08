@@ -42,19 +42,32 @@
 %
 %  Its implementation is more general than the one in library/clp/clpfd.pl,
 %  since it allows to work with incomplete double lists, provided that the
-%  transpose have sense. Example:
+%  transpose makes sense.  Because of that, it could be non-deterministic for
+%  partially-instantiated lists. Example:
 %
 %  ==
 %  ?- transpose([[1,2,3,4],[5,6,7,8],[9,10],[11,12],[13]], Ts).
 %  Ts = [[1, 5, 9, 11, 13], [2, 6, 10, 12], [3, 7], [4, 8]].
 %  ==
 
-
+transpose(A, B) :-
+    var(A),
+    nonvar(B),
+    !,
+    transpose(B, A).
 transpose([], L) :-
     once(maplist(=([]), L)).
 transpose([C|Cs], L) :-
-    deal_column(C, L, R),
-    transpose(Cs, R).
+    ( nonvar(C)
+    ->deal_column(C, L, R),
+      transpose(Cs, R)
+    ; ( is_list(L)
+      ->same_length(L, R)
+      ; true
+      ),
+      transpose(Cs, R),
+      deal_column(C, L, R)
+    ).
 
 deal_column([], L, L) :-
     once(maplist(=([]), L)).
