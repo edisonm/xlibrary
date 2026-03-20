@@ -33,19 +33,20 @@
 */
 
 :- module(limit_order_by,
-          [ limit_order_by/3 % +Count, +Spec, :Goal
+          [ limit_distinct_order_by/4, % +Count, +Witness, +Spec, :Goal
+            limit_order_by/3           % +Count, +Spec, :Goal
           ]).
 
 :- use_module(library(lists)).
 :- use_module(library(solution_sequences)).
 
-%!   limit_order_by(+Count, +Spec, :Goal)
+%!  limit_order_by(+Count, +Spec, :Goal)
 %
-%    Optimized version that combines limit/2 and order_by/3 in one predicate.
-%    It avoids to keep all the solutions in memory, but only Count instead.
-%    It is equivalent to:
+%   Optimized version that combines limit/2 and order_by/3 in one predicate.
+%   It avoids to keep all the solutions in memory, but only Count instead.
+%   It is equivalent to:
 %
-%    limit_order_by(Count, Spec, Goal) :- limit(Count, order_by([Spec], Goal)).
+%   limit_order_by(Count, Spec, Goal) :- limit(Count, order_by([Spec], Goal)).
 
 compare(asc,  Order, Term1, Term2) :- compare(Order, Term2, Term1).
 compare(desc, Order, Term1, Term2) :- compare(Order, Term1, Term2).
@@ -74,6 +75,35 @@ limit_order_by(Count, Spec, Goal) :-
                )
            )),
     SHolder = s(KeyVarsU),
+    inv_order(Dir, Inv),
+    spec_sort(Inv, KeyVarsU, KeyVarsL),
+    member(Key-Vars, KeyVarsL).
+
+limit_distinct_order_by(Count, Witness, Spec, Goal) :-
+    SHolder = s(0, []),
+    term_variables(Goal, Vars),
+    term_variables(Witness, WVars),
+    WTerm =.. [w|WVars],
+    dir_key(Spec, Dir, Key),
+    forall(Goal,
+           (   SHolder = s(N1, L1),
+               variant_sha1(WTerm, Hash),
+               (   (   Elem1 = Key1-Hash/_,
+                       select(Elem1, L1, L2)
+                   ->  compare(Dir, <, Key, Key1),
+                       L = [Key-Hash/Vars|L2]
+                   ;   (   N1 < Count
+                       ->  L = [Key-Hash/Vars|L1]
+                       ;   spec_sort(Dir, [Key-Hash/Vars|L1], [_|L])
+                       ),
+                       succ(N1, N),
+                       nb_setarg(1, SHolder, N)
+                   )
+               ->  nb_setarg(2, SHolder, L)
+               ;   true
+               )
+           )),
+    SHolder = s(_, KeyVarsU),
     inv_order(Dir, Inv),
     spec_sort(Inv, KeyVarsU, KeyVarsL),
     member(Key-Vars, KeyVarsL).
