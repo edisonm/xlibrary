@@ -40,6 +40,9 @@
 :- use_module(library(lists)).
 :- use_module(library(solution_sequences)).
 
+ord_key(asc( Key), @>=, Key).
+ord_key(desc(Key), @=<, Key).
+
 %!  limit_order_by(+Count, +Spec, :Goal)
 %
 %   Optimized version that combines limit/2 and order_by/3 in one predicate.
@@ -48,62 +51,54 @@
 %
 %   limit_order_by(Count, Spec, Goal) :- limit(Count, order_by([Spec], Goal)).
 
-compare(asc,  Order, Term1, Term2) :- compare(Order, Term2, Term1).
-compare(desc, Order, Term1, Term2) :- compare(Order, Term1, Term2).
-
-spec_sort(Dir, L1, L2) :-
-    predsort(compare(Dir), L1, L2).
-
-dir_key(asc( Key), asc,  Key).
-dir_key(desc(Key), desc, Key).
-
-inv_order(asc, desc).
-inv_order(desc, asc).
-
 :- meta_predicate limit_order_by(+, ?, 0).
 
 limit_order_by(Count, Spec, Goal) :-
     SHolder = s([]),
     term_variables(Goal, Vars),
-    dir_key(Spec, Dir, Key),
+    ord_key(Spec, Ord, Key),
     forall(call_nth(Goal, N),
            (   SHolder = s(L1),
                (   N =< Count
                ->  nb_setarg(1, SHolder, [Key-Vars|L1])
-               ;   spec_sort(Dir, [Key-Vars|L1], [_|L]),
+               ;   sort(1, Ord, [Key-Vars|L1], [_|L]),
                    nb_setarg(1, SHolder, L)
                )
            )),
     SHolder = s(KeyVarsU),
-    inv_order(Dir, Inv),
-    spec_sort(Inv, KeyVarsU, KeyVarsL),
+    sort(1, Ord, KeyVarsU, KeyVarsR),
+    reverse(KeyVarsR, KeyVarsL),
     member(Key-Vars, KeyVarsL).
+
+ldoby(SHolder, Elem, Ord, Hash, Count, WTerm) :-
+    SHolder = s(N1, L1),
+    variant_sha1(WTerm, Hash),
+    (   (   Elem1 = _-Hash/_,
+            select(Elem1, L1, L2)
+        ->  \+ call(Ord, Elem, Elem1),
+            L = [Elem|L2]
+        ;   (   N1 < Count
+            ->  L = [Elem|L1]
+            ;   sort(1, Ord, [Elem|L1], [_|L])
+            ),
+            succ(N1, N),
+            nb_setarg(1, SHolder, N)
+        )
+    ->  nb_setarg(2, SHolder, L)
+    ;   true
+    ).
+
+:- meta_predicate limit_distinct_order_by(+, ?, ?, 0).
 
 limit_distinct_order_by(Count, Witness, Spec, Goal) :-
     SHolder = s(0, []),
     term_variables(Goal, Vars),
     term_variables(Witness, WVars),
     WTerm =.. [w|WVars],
-    dir_key(Spec, Dir, Key),
-    forall(Goal,
-           (   SHolder = s(N1, L1),
-               variant_sha1(WTerm, Hash),
-               (   (   Elem1 = Key1-Hash/_,
-                       select(Elem1, L1, L2)
-                   ->  compare(Dir, <, Key, Key1),
-                       L = [Key-Hash/Vars|L2]
-                   ;   (   N1 < Count
-                       ->  L = [Key-Hash/Vars|L1]
-                       ;   spec_sort(Dir, [Key-Hash/Vars|L1], [_|L])
-                       ),
-                       succ(N1, N),
-                       nb_setarg(1, SHolder, N)
-                   )
-               ->  nb_setarg(2, SHolder, L)
-               ;   true
-               )
-           )),
+    ord_key(Spec, Ord, Key),
+    Elem = Key-Hash/Vars,
+    forall(Goal, ldoby(SHolder, Elem, Ord, Hash, Count, WTerm)),
     SHolder = s(_, KeyVarsU),
-    inv_order(Dir, Inv),
-    spec_sort(Inv, KeyVarsU, KeyVarsL),
-    member(Key-Vars, KeyVarsL).
+    sort(1, Ord, KeyVarsU, KeyVarsR),
+    reverse(KeyVarsR, KeyVarsL),
+    member(Key-_/Vars, KeyVarsL).
