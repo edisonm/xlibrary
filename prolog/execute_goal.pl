@@ -198,7 +198,10 @@ consider_solution(Count, Pri, Key, Distinct, WTerm, Group, Vars, State, GHolder)
     GHolder = holder(G0),
     put_assoc(Group, G0, Bucket, G1),
     nb_setarg(1, GHolder, G1),
-    mark_hash(State, Hash, Key).
+    ( Distinct == true
+    ->mark_hash(State, Hash, Key)
+    ; true
+    ).
 
 get_or_create_bucket(GHolder, Group, Bucket) :-
     GHolder = holder(G0),
