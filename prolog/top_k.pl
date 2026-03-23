@@ -187,7 +187,13 @@ replace_topk(Key1, Pri, Key, Entry, HHolder) :-
 
 heap_to_list(holder(_N, H), Pri, SortedKeyVars) :-
     heap_to_list(H, KV0),
-    sort(1, Pri, KV0, SortedKeyVars).
+    ( Pri == (@=<)
+    ->% To avoid the reverse we need a max-heap, SWI-Prolog only provides a
+      % min-heap implementation
+      reverse(KV0, KV1)
+    ; KV1 = KV0
+    ),
+    sort(1, Pri, KV1, SortedKeyVars).
 
 /* ---------- optimized execution (top-K per group) ---------- */
 
@@ -198,6 +204,10 @@ run_optimized(Goal, Count, Pri, Key, Distinct, Witness, Group, Return, GK, Resul
     GHolder = holder(G0),  % maps GroupKey -> holder(N,Heap)
     term_variables(Witness, WVars),
     WTerm =.. [w|WVars],
+    ( ground(Group)
+    ->create_bucket(GHolder, Group, _)
+    ; true
+    ),
     forall(Goal,
            ignore(consider_solution(Count, Pri, Key, Distinct, WTerm, Group, Vars, State, GHolder))),
     finalize(Group, Return, Pri, GHolder, Vars, Goal, GK, Result).
@@ -232,11 +242,15 @@ get_or_create_bucket(GHolder, Group, Bucket) :-
     GHolder = holder(G0),
     (   get_assoc(Group, G0, Bucket)
     ->  true
-    ;   empty_heap(H0),
-        Bucket = holder(0, H0),
-        put_assoc(Group, G0, Bucket, G1),
-        nb_setarg(1, GHolder, G1)
+    ;   create_bucket(GHolder, Group, Bucket)
     ).
+
+create_bucket(GHolder, Group, Bucket) :-
+    GHolder = holder(G0),
+    empty_heap(H0),
+    Bucket = holder(0, H0),
+    put_assoc(Group, G0, Bucket, G1),
+    nb_setarg(1, GHolder, G1).
 
 finalize(Group, Return, Pri, holder(G), Vars, Goal, GK, Result) :-
     gen_assoc(GK, G, Bucket),
