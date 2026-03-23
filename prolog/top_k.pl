@@ -32,22 +32,33 @@
     POSSIBILITY OF SUCH DAMAGE.
 */
 
-:- module(execute_goal,
-          [ execute_goal/2
+:- module(top_k,
+          [ top_k/4 % +Options, :Goal, -GroupKey, -Result
           ]).
 
 :- use_module(library(heaps)).
 :- use_module(library(assoc)).
 :- use_module(library(option)).
 
-/*
-Opts:
-  - limit(N)                        mandatory
+/* <Top-k selection problem>
+
+This module provides a predicate top_k/3, which is an efficient replacement of
+the library(solution_sequences) when several sequencing options have to be
+combined.
+
+The very well-known top-k selection problem says:
+
+- “Given a set of items, find the k items with the highest scores”
+
+Options:
+  - limit(N)                        Optional, maximum number of solutions to process.
+                                    Default is infinite.
   - order_by(asc(Key) | desc(Key))  Optional, Key is a term evaluated in Goal's context
   - distinct(W)                     term; skip solutions that bounds W to the same value.
                                     If not provided the original order is preserved
   - group_by(G)                     optional term; if given, do top-K per group, if not
                                     provided, it equates to put all in one single group
+  - return(list(Term)|backtrack)    Returns the solutions as list of Term or backtracking
 
 semantically equivalent to:
     group_by(G, Goal, limit(N, distinct(W, order_by(OrderSpec, Goal))), GKGoalL),
@@ -62,7 +73,7 @@ semantically equivalent to:
 
 % Test:
 
-% ?- findall(X-Y, execute_goal([limit(3),distinct(Y),order_by(asc(X))], member(X-Y, [6-z,3-a,2-a,1-a,3-b,4-c,5-d])), L).
+% ?- top_k([limit(3),distinct(Y),order_by(asc(X)), return(list(X-Y))], member(X-Y, [6-z,3-a,2-a,1-a,3-b,4-c,5-d]), _, L).
 % L = [1-a, 3-b, 4-c].
 
 % To compare performance wrt library(solution_sequences):
@@ -72,22 +83,35 @@ semantically equivalent to:
 % ERROR: Stack limit (1.0Gb) exceeded
 
 % whee:
-% ?- time((findall(E, between(1,1000,E),L),findall(E1-E2, execute_goal([limit(10),distinct(E1-E2),order(asc(E2))],( append(_, [E1|T], L), member(E2, T) )), L2), length(L2, S2))).
+% ?- time((findall(E, between(1,1000,E),L),top_k([limit(10),distinct(E1-E2),order(asc(E2)), return(list(E1-E2))],( append(_, [E1|T], L), member(E2, T) ), _Group, L2), length(L2, S2))).
 % % 21,981,983 inferences, 0.825 CPU in 0.825 seconds (100% CPU, 26650647 Lips)
 % ...
 
-:- meta_predicate execute_goal(+, 0).
+:- meta_predicate top_k(+, 0, -, -).
 
-execute_goal(Opts, Goal) :-
+top_k(Options, Goal, GK, Result) :-
+    (   Options == []
+    ->  call(Goal)
+    ;   Options = [Opt]
+    ->  dispatch_single(Opt, Goal)
+    ;   run_optimized(Options, Goal, GK, Result)
+    ).
+
+dispatch_single(order_by(Spec), Goal) :- order_by([Spec], Goal).
+dispatch_single(limit(K), Goal) :- limit(K, Goal).
+dispatch_single(distinct(W), Goal) :- distinct(W, Goal).
+
+run_optimized(Opts, Goal, GK, Result) :-
     option(limit(Count), Opts, inf),
     option(order_by(OrderSpec), Opts, asc(unordered)),
     option(group_by(Group), Opts, ungrouped),
+    option(return(Return), Opts, backtrack),
     (   option(distinct(Witness), Opts)
     ->  Distinct = true
     ;   Distinct = false
     ),
     priority_for(OrderSpec, Pri, Key),
-    execute_goal(Goal, Count, Pri, Key, Distinct, Witness, Group).
+    run_optimized(Goal, Count, Pri, Key, Distinct, Witness, Group, Return, GK, Result).
 
 /* ---------- ordering ---------- */
 
@@ -164,9 +188,9 @@ heap_to_list(holder(_N, H), Pri, SortedKeyVars) :-
     heap_to_list(H, KV0),
     sort(1, Pri, KV0, SortedKeyVars).
 
-/* ---------- grouped execution (top-K per group) ---------- */
+/* ---------- optimized execution (top-K per group) ---------- */
 
-execute_goal(Goal, Count, Pri, Key, Distinct, Witness, Group) :-
+run_optimized(Goal, Count, Pri, Key, Distinct, Witness, Group, Return, GK, Result) :-
     term_variables(Goal, Vars),
     setup_state(Distinct, State),
     empty_assoc(G0),
@@ -175,7 +199,7 @@ execute_goal(Goal, Count, Pri, Key, Distinct, Witness, Group) :-
     WTerm =.. [w|WVars],
     forall(Goal,
            ignore(consider_solution(Count, Pri, Key, Distinct, WTerm, Group, Vars, State, GHolder))),
-    finalize(Pri, GHolder, Vars).
+    finalize(Group, Return, Pri, GHolder, Vars, Goal, GK, Result).
 
 consider_solution(Count, Pri, Key, Distinct, WTerm, Group, Vars, State, GHolder) :-
     Entry = Vars,
@@ -213,7 +237,11 @@ get_or_create_bucket(GHolder, Group, Bucket) :-
         nb_setarg(1, GHolder, G1)
     ).
 
-finalize(Pri, holder(G), Vars) :-
-    gen_assoc(_GK, G, Bucket),
+finalize(Group, Return, Pri, holder(G), Vars, Goal, GK, Result) :-
+    gen_assoc(GK, G, Bucket),
+    (Group == ungrouped -> ! ; true), % Minor optimization
     heap_to_list(Bucket, Pri, List),
-    member(_Key-Vars, List).
+    emit_result(Return, Vars, List, Goal, Result).
+
+emit_result(list(Term), Vars, List, _, Result) :- findall(Term, member(_Key-Vars, List), Result).
+emit_result(backtrack, Vars, List, Goal, Goal) :- member(_Key-Vars, List).
