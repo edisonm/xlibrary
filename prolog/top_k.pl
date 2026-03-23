@@ -39,6 +39,7 @@
 :- use_module(library(heaps)).
 :- use_module(library(assoc)).
 :- use_module(library(option)).
+:- use_module(library(solution_sequences)).
 
 /* <Top-k selection problem>
 
