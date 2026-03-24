@@ -33,7 +33,7 @@
 */
 
 :- module(top_k,
-          [ top_k/4 % +Options, :Goal, -GroupKey, -Result
+          [ top_k/3 % +Options, :Goal, -Result
           ]).
 
 :- use_module(library(heaps)).
@@ -74,7 +74,7 @@ semantically equivalent to:
 
 % Test:
 
-% ?- top_k([limit(3),distinct(Y),order_by(asc(X)), return(list(X-Y))], member(X-Y, [6-z,3-a,2-a,1-a,3-b,4-c,5-d]), _, L).
+% ?- top_k([limit(3),distinct(Y),order_by(asc(X)), return(list(X-Y))], member(X-Y, [6-z,3-a,2-a,1-a,3-b,4-c,5-d]), L).
 % L = [1-a, 3-b, 4-c].
 
 % To compare performance wrt library(solution_sequences):
@@ -84,35 +84,61 @@ semantically equivalent to:
 % ERROR: Stack limit (1.0Gb) exceeded
 
 % whee:
-% ?- time((findall(E, between(1,1000,E),L),top_k([limit(10),distinct(E1-E2),order(asc(E2)), return(list(E1-E2))],( append(_, [E1|T], L), member(E2, T) ), _Group, L2), length(L2, S2))).
+% ?- time((findall(E, between(1,1000,E),L),top_k([limit(10),distinct(E1-E2),order(asc(E2)), return(list(E1-E2))],( append(_, [E1|T], L), member(E2, T) ), L2), length(L2, S2))).
 % % 21,981,983 inferences, 0.825 CPU in 0.825 seconds (100% CPU, 26650647 Lips)
 % ...
 
-:- meta_predicate top_k(+, 0, -, -).
+:- meta_predicate top_k(+, 0, -).
 
-top_k(Options, Goal, GK, Result) :-
-    (   Options == []
-    ->  call(Goal)
-    ;   Options = [Opt]
-    ->  dispatch_single(Opt, Goal)
-    ;   run_optimized(Options, Goal, GK, Result)
+top_k(Options1, Goal, Result) :-
+    select_option(return(Return), Options1, Options, backtrack),
+    top_k(Return, Options, Goal, Result).
+
+top_k(Return, Options, Goal, Result) :-
+    (   Options = [_, _|_]
+    ->  run_optimized(Return, Options, Goal, Result)
+    ;   dispatch_singles(Return, Options, Goal, Result)
     ).
 
-dispatch_single(order_by(Spec), Goal) :- order_by([Spec], Goal).
-dispatch_single(limit(K), Goal) :- limit(K, Goal).
-dispatch_single(distinct(W), Goal) :- distinct(W, Goal).
+dispatch_singles(backtrack,  Opts, Goal, Goal) :- dispatch_singles(Opts, Goal, _).
+dispatch_singles(list(Term), Opts, Goal, List) :-
+    option(group_by(Group), Opts, ungrouped),
+    (   group_by(GK, Term, dispatch_singles(Opts, Goal, GK), List)
+    *-> Group = GK % instantiate Group
+    ;   ground(Group),
+        List = [] % prevent failure if no solutions where found
+    ).
 
-run_optimized(Opts, Goal, GK, Result) :-
+dispatch_singles([],    Goal, ungrouped) :- call(Goal).
+dispatch_singles([Opt], Goal, GK) :- dispatch_single(Opt, Goal, GK).
+
+ordered_term_variables(Term, Vars) :-
+    term_variables(Term, UVars),
+    sort(UVars, Vars).
+
+dispatch_single(order_by(Spec),  Goal, ungrouped) :- order_by([Spec], Goal).
+dispatch_single(limit(K),        Goal, ungrouped) :- limit(K, Goal).
+dispatch_single(distinct(W),     Goal, ungrouped) :- distinct(W, Goal).
+dispatch_single(group_by(Group), Goal, Group) :- dispatch_group_by(Goal, Group).
+
+dispatch_group_by(Goal, Group) :-
+    ordered_term_variables(Goal, GVars),
+    ordered_term_variables(Group, KVars),
+    ord_subtract(GVars, KVars, TVars),
+    Term =.. [v|TVars],
+    bagof(Term, Goal, List),
+    member(Term, List).
+
+run_optimized(Return, Opts, Goal, Result) :-
     option(limit(Count), Opts, inf),
     option(order_by(OrderSpec), Opts, asc(unordered)),
     option(group_by(Group), Opts, ungrouped),
-    option(return(Return), Opts, backtrack),
     (   option(distinct(Witness), Opts)
     ->  Distinct = true
     ;   Distinct = false
     ),
     priority_for(OrderSpec, Pri, Key),
-    run_optimized(Goal, Count, Pri, Key, Distinct, Witness, Group, Return, GK, Result).
+    run_optimized(Goal, Count, Pri, Key, Distinct, Witness, Group, Return, Result).
 
 /* ---------- ordering ---------- */
 
@@ -197,7 +223,7 @@ heap_to_list(holder(_N, H), Pri, SortedKeyVars) :-
 
 /* ---------- optimized execution (top-K per group) ---------- */
 
-run_optimized(Goal, Count, Pri, Key, Distinct, Witness, Group, Return, GK, Result) :-
+run_optimized(Goal, Count, Pri, Key, Distinct, Witness, Group, Return, Result) :-
     term_variables(Goal, Vars),
     setup_state(Distinct, State),
     empty_assoc(G0),
@@ -210,7 +236,7 @@ run_optimized(Goal, Count, Pri, Key, Distinct, Witness, Group, Return, GK, Resul
     ),
     forall(Goal,
            ignore(consider_solution(Count, Pri, Key, Distinct, WTerm, Group, Vars, State, GHolder))),
-    finalize(Group, Return, Pri, GHolder, Vars, Goal, GK, Result).
+    finalize(Group, Return, Pri, GHolder, Vars, Goal, Result).
 
 consider_solution(Count, Pri, Key, Distinct, WTerm, Group, Vars, State, GHolder) :-
     Entry = Vars,
@@ -252,8 +278,8 @@ create_bucket(GHolder, Group, Bucket) :-
     put_assoc(Group, G0, Bucket, G1),
     nb_setarg(1, GHolder, G1).
 
-finalize(Group, Return, Pri, holder(G), Vars, Goal, GK, Result) :-
-    gen_assoc(GK, G, Bucket),
+finalize(Group, Return, Pri, holder(G), Vars, Goal, Result) :-
+    gen_assoc(Group, G, Bucket),
     (Group == ungrouped -> ! ; true), % Minor optimization
     heap_to_list(Bucket, Pri, List),
     emit_result(Return, Vars, List, Goal, Result).
