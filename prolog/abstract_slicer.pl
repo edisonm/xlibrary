@@ -170,13 +170,17 @@ slicer_abstraction(Spec, VarsR, Scope, MGoal, Body) -->
       ; ( Scope = body % check if the body trivially fails:
         ->once(( match_head_body(M:Goal, Body1, Loc),
                  ( is_pure_body(Body1)
-                 ->catch(call(Body1), _, true)
-                 ; true
+                 ->( is_pure_body(Body1, requires_subst(EvalL))
+                   ->catch(call(Body1), _, true),
+                     Body = M:true
+                   ; Body = Body1
+                   )
+                 ; Body = M:true
                  )
                ))
-        ; Loc = Loc1
-        ),
-        Body = M:true
+        ; Loc = Loc1,
+          Body = M:true
+        )
       )
     },
     { Scope = head
