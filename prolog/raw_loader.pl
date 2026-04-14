@@ -34,10 +34,13 @@
 
 :- module(raw_loader,
           [ raw_load/1,
-            raw_load/2
+            raw_load/2,
+            raw_file/2,
+            raw_file/3
           ]).
 
 :- use_module(library(lists)).
+:- use_module(library(option)).
 
 :- meta_predicate
         raw_load(:),
@@ -49,7 +52,8 @@ abolish_predicates(M:L) :-
 %!  raw_load(:Alias, :PredicateIndicators) is det.
 %
 %   Like raw_load/1, but in addition calls compile_predicates/1 to compile those
-%   predicates into static predicates.
+%   predicates into static predicates. Alias can be a list of aliases, in such
+%   case all the aliases are loaded as if they where concatenated
 
 raw_load(Alias, PI) :-
     abolish_predicates(PI),
@@ -72,10 +76,26 @@ raw_load(M:Alias) :-
            abolish(M:H)),
     do_raw_load(M:Alias).
 
+raw_file(Alias, File, Opts1) :-
+    merge_options(Opts1, [extensions([raw, ''])], Opts),
+    absolute_file_name(Alias, File, Opts).
+
+raw_file(Alias, File) :- raw_file(Alias, File, []).
+
 do_raw_load(M:Alias) :-
-    prolog_load_context(source, Source),
-    absolute_file_name(Alias, File,
-                       [extensions([raw, '']), access(exist), relative_to(Source)]),
+    ( prolog_load_context(source, Source)
+    ->T = [relative_to(Source)]
+    ; T = []
+    ),
+    do_raw_load(Alias, M, [access(exist)|T]).
+
+do_raw_load([A|B], M, T) :-
+    !,
+    do_raw_load(A, M, T),
+    do_raw_load(B, M, T).
+do_raw_load([], _, _) :- !.
+do_raw_load(Alias, M, T) :-
+    raw_file(Alias, File, T),
     setup_call_cleanup(
         open(File, read, Stream),
         raw_load_loop(Stream, M),
