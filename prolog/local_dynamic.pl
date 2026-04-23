@@ -151,7 +151,7 @@ ld_define_relation(Store, M, Name, Arity) :-
 %!  ld_free(+Store)
 %
 %   Destroy a store and all its data,
-%   remove all data from all relations in the store, and
+%   remove all data from all patterns in the store, and
 %   Add the released relations to the released table
 %
 
