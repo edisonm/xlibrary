@@ -48,6 +48,7 @@
             ld_retractall/2,
 
             % querying
+            ld_call/1,
             ld_call/2
     
           ]).
@@ -247,6 +248,9 @@ ld_asserta(Fact) :-
 
 ld_assertz(Fact) :-
     ld_assertz(_, Fact).
+
+ld_call(Fact) :-
+    ld_call(_, Fact).
 
 ld_retract(Fact) :-
     ld_retract(_, Fact).
