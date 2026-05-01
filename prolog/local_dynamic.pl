@@ -243,12 +243,6 @@ ld_asserta(Fact) :-
 ld_assertz(Fact) :-
     ld_assertz(_, Fact).
 
-ld_query(Pattern) :-
-    ld_query(_, Pattern).
-
-ld_delete(Pattern) :-
-    ld_delete(_, Pattern).
-
 %!  ld_pred(+Store, +Pattern, -Term)
 %
 %   Resolve the internal predicate for a fact.
@@ -259,19 +253,21 @@ ld_pred(Store, Pattern, M:Term) :-
 ld_pred(Store, Pattern, _) :-
     domain_error(local_dynamic(Store), Pattern).
 
+/*
 example :-
     with_local_dynamic([edge/2], S1,
         with_local_dynamic([edge/2], S2,
             (   ld_assertz(S1, edge(a,b)),
                 ld_assertz(S2, edge(b,c)),
 
-                ld_query(S1, edge(X,Y)),
+                ld_call(S1, edge(X,Y)),
                 format("S1: ~w -> ~w~n", [X,Y]),
 
-                ld_query(S2, edge(U,V)),
+                ld_call(S2, edge(U,V)),
                 format("S2: ~w -> ~w~n", [U,V]),
 
-                ld_query(edge(M,N)),
+                ld_call(edge(M,N)),
                 format("S3: ~w -> ~w~n", [M,N])
             )
         )).
+*/
