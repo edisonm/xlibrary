@@ -38,9 +38,13 @@
             with_local_dynamic/3,
 
             % mutation
+            ld_asserta/1,
             ld_asserta/2,
+            ld_assertz/1,
             ld_assertz/2,
+            ld_retract/1,
             ld_retract/2,
+            ld_retractall/1,
             ld_retractall/2,
 
             % querying
@@ -109,11 +113,11 @@ convenient but global visibility is undesirable.
   Module  : context module
 */
 
-:- thread_local ld_relation/4.
+:- dynamic ld_relation/4.
 :- volatile ld_relation/4.
 
 % Keep a pool of released predicates for reusage
-:- thread_local ld_released/3.
+:- dynamic ld_released/3.
 :- volatile ld_released/3.
 
 % private API lifecycle
@@ -140,7 +144,8 @@ ld_define_relation(Store, M, Name, Arity) :-
     ;   gensym(Name, Pred),
         Patt =.. [Name | Args],
         Term =.. [Pred | Args],
-        thread_local(M:Pred/Arity)
+        dynamic(M:Pred/Arity),
+        volatile(M:Pred/Arity)
     ),
     % NOTE:
     % ld_relation/4 entries are asserted with asserta/1 so that
@@ -182,7 +187,7 @@ ld_free(Store) :-
 %   and can be used with the explicit ld_* predicates.  If omitted, the
 %   most recently entered local dynamic context is used implicitly.
 %
-%   This predicate provides scoped, thread-local dynamic predicates and
+%   This predicate provides scoped, volatile dynamic predicates and
 %   is intended as a disciplined alternative to using global dynamics
 %   for temporary or working-memory data.
 
@@ -242,6 +247,12 @@ ld_asserta(Fact) :-
 
 ld_assertz(Fact) :-
     ld_assertz(_, Fact).
+
+ld_retract(Fact) :-
+    ld_retract(_, Fact).
+
+ld_retractall(Fact) :-
+    ld_retractall(_, Fact).
 
 %!  ld_pred(+Store, +Pattern, -Term)
 %
