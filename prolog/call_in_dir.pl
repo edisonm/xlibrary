@@ -32,17 +32,46 @@
     POSSIBILITY OF SUCH DAMAGE.
 */
 
-:- module(call_in_dir, [call_in_module_dir/2,
-                        call_in_dir/2]).
+:- module(call_in_dir,
+          [ call_in_module_dir/2,
+            call_in_load_dir/1,
+            call_in_dir/2
+          ]).
 
 :- use_module(library(filesex)).
 :- use_module(library(shell)).
+
+%!  call_in_module_dir(+Module, :Goal) is nondet.
+%
+%   Call Goal with the process working directory temporarily changed to the
+%   directory that contains the source file of Module. The original working
+%   directory is restored after Goal succeeds, fails, or throws.
+%
+%   Fails if Module has no associated source file.
 
 :- meta_predicate call_in_module_dir(+,0).
 call_in_module_dir(M, G) :-
     module_property(M, file(Path)),
     directory_file_path(Dir, _, Path),
     call_in_dir(Dir, G).
+
+%!  call_in_load_dir(:Goal) is nondet.
+%
+%   Call Goal with the process working directory temporarily changed to the
+%   directory from the current load context. This is useful for directives that
+%   need paths relative to the file being loaded. The original working directory
+%   is restored after Goal succeeds, fails, or throws.
+
+:- meta_predicate call_in_load_dir(0).
+call_in_load_dir(G) :-
+    prolog_load_context(directory, Dir),
+    call_in_dir(Dir, G).
+
+%!  call_in_dir(+Dir, :Goal) is nondet.
+%
+%   Call Goal with the process working directory temporarily changed to Dir.
+%   The previous working directory is restored using setup_call_cleanup/3,
+%   regardless of whether Goal succeeds, fails, or throws.
 
 :- meta_predicate call_in_dir(+,0).
 call_in_dir(Dir, G) :-
