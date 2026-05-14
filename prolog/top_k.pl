@@ -33,13 +33,15 @@
 */
 
 :- module(top_k,
-          [ top_k/3 % +Options, :Goal, -Result
+          [ top_k/3, % +Options, :Goal, -Result
+            group_by_sorted/4
           ]).
 
 :- use_module(library(heaps)).
 :- use_module(library(assoc)).
 :- use_module(library(option)).
 :- use_module(library(solution_sequences)).
+:- use_module(library(local_dynamic)).
 
 /* <Top-k selection problem>
 
@@ -286,3 +288,23 @@ finalize(Group, Return, Pri, holder(G), Vars, Goal, Result) :-
 
 emit_result(list(Term), Vars, List, _, Result) :- findall(Term, member(_Key-Vars, List), Result).
 emit_result(backtrack, Vars, List, Goal, Goal) :- member(_Key-Vars, List).
+
+:- meta_predicate group_by_sorted(+, +, 0, -).
+
+%!  group_by_sorted(+Key, :Value, -Goal, -Bag)
+%
+%   Like group_by/4, but assumes that Goal produces solutions
+%   ordered by Key. This allows a linear, streaming implementation.
+
+group_by_sorted(Key, Value, Goal, Bag) :-
+    with_local_dynamic([key_value/2], H, group_by_sorted(H, Key, Value, Goal, Bag)).
+
+group_by_sorted(H, Key, Value, Goal, Bag) :-
+    ( copy_term(Goal-Key-Value, Goal1-Key1-Value1),
+      Goal1,
+      ld_assertz(H, key_value(Key1, Value1)),
+      once(ld_call(H, key_value(Key, _))),
+      Key \= Key1
+    ; true
+    ),
+    group_by(Key, Value, ld_retract(H, key_value(Key, Value)), Bag).
