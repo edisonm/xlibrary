@@ -136,13 +136,17 @@ ld_new(Schema, M, Store) :-
         ld_define_relation(Store, M, Name, Arity)
     ).
 
+ld_prefix('__aux_ld_').
+
 ld_define_relation(Store, M, Name, Arity) :-
     must_be(atom, Name),
     must_be(integer, Arity),
     functor(Patt, Name, Arity),
     (   retract(ld_released(Patt, M, Term))
     ->  true
-    ;   gensym(Name, Pred),
+    ;   ld_prefix(Pref),
+        atom_concat(Pref, Name, AuxN),
+        gensym(AuxN, Pred),
         Patt =.. [Name | Args],
         Term =.. [Pred | Args],
         dynamic(M:Pred/Arity),
