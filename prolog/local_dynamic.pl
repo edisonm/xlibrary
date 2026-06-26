@@ -42,6 +42,7 @@
             ld_asserta/2,
             ld_assertz/1,
             ld_assertz/2,
+            ld_property/3,
             ld_retract/1,
             ld_retract/2,
             ld_retractall/1,
@@ -243,6 +244,14 @@ ld_retractall(Store, Pattern) :-
 ld_call(Store, Pattern) :-
     ld_pred(Store, Pattern, Term),
     call(Term).
+
+%!  ld_property(+Store, +Pattern, ?Property)
+%
+%   Query a property of the pattern.
+%
+ld_property(Store, Pattern, Property) :-
+    ld_pred(Store, Pattern, Term),
+    predicate_property(Term, Property).
 
 with_local_dynamic(Schema, Goal) :-
     with_local_dynamic(Schema, _, Goal).
