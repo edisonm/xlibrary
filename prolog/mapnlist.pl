@@ -88,7 +88,10 @@ Head :-
     length(LList, Length),
     append(LList, [Goal], HeadL),
     Head =.. [mapnlist_|HeadL],
-    ( maplist(=([]), LList),
+    ( Lit =.. [call, Goal|LList],
+      arg(1, LList, Elem),
+      Body = (var(Elem), !, Lit)
+    ; maplist(=([]), LList),
       Body = !
     ; length(HL, Length),
       maplist(split_ht, LList, HL, TL),
