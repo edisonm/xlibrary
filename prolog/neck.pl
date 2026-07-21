@@ -276,8 +276,12 @@ term_expansion_hb(File, Line, M, Head, Neck, Static, Right, NeckHead, NeckBody, 
           )
         )
       )
-    ; expand_goal(M:Right, M:NeckBody),
-      findall(t(Pattern, Head), call_checks(Neck, File, Line, Expanded, HasCP), ClausePIL),
+    ; findall(t(Pattern, Head),
+              ( call_checks(Neck, File, Line, Expanded, HasCP),
+                % expand_goal called inside here in case call_checks causes the
+                % instantiation of potential partial-evaluable expressions:
+                expand_goal(M:Right, M:NeckBody)
+              ), ClausePIL),
       RTHead = Head,
       ClauseL1 = []
     ),
