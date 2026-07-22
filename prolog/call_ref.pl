@@ -37,6 +37,8 @@
             call_ref/3
           ]).
 
+:- use_module(library(qualify_meta_goal)).
+
 :- meta_predicate
         call_ref(:, -),
         call_ref(:, -, -).
@@ -48,5 +50,9 @@ call_ref(Head, Ref) :-
 
 % Use this instead of clause/3 to avoid erased clauses
 call_ref(Head, Body, Ref) :-
-    clause(Head, Body, Ref),
+    ( nonvar(Ref)
+    ->Head = MQ
+    ; qualify_meta_goal(Head, MQ)
+    ),
+    clause(MQ, Body, Ref),
     \+ clause_property(Ref, erased).
