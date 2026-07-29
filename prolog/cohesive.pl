@@ -144,7 +144,7 @@ freeze_cohesive_module_rt(H, Context, M, CohM, Scope, CheckCohM) :-
 
 %!  call_cm(:Goal, +Context, -CohesiveModule) is multi.
 
-%   Calls Goal and returns the module where the current clause was implemented from.
+%   Calls Goal and returns the module where the current clause was implemented.
 
 call_cm(Goal, Context, CohM, HWrp, IM) :-
     strip_module(Goal, _, Head),
