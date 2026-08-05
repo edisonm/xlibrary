@@ -53,7 +53,8 @@ performance.
 % you only want compiled lambda expressions:
 
 remove_hats(^(H, G1), G) -->
-    [H], !,
+    [H],
+    !,
     remove_hats(G1, G).
 remove_hats(G, G) --> [].
 
@@ -81,6 +82,7 @@ bind_name(Name=_, Name).
 
 check_singletons(Goal, Term) :-
     term_variables(Term, VarL),
+    Term = h(_, _, A),
     ( nb_current('$variable_names', Bindings)
     ->true
     ; Bindings = []
@@ -88,14 +90,28 @@ check_singletons(Goal, Term) :-
     include(have_name(VarL), Bindings, VarN),
     include(singleton(Term), VarN, VarSN),
     ( VarSN \= []
-    ->maplist(bind_name, VarSN, Names),
-      print_message(warning, local_variables_outside(Names, Goal, Bindings))
+    ->term_variables(A, VarAL),
+      include(have_name(VarAL), Bindings, VarAN),
+      intersection(VarAN, VarSN, VarIN),
+      subtract(VarSN, VarAN, VarDN),
+      ( VarIN \= []
+      ->maplist(bind_name, VarIN, INames),
+        print_message(warning, local_variables_outside(INames, Goal, Bindings))
+      ; true
+      ),
+      ( VarDN \= []
+      ->maplist(bind_name, VarDN, DNames),
+        print_message(warning, unused_parameter(DNames, Goal, Bindings))
+      ; true
+      )
     ; true
     ).
 
 prolog:message(local_variables_outside(Names, Goal, Bindings)) -->
-    [ 'Local variables ~w should not occur outside lambda expression: ~W'
-    -[Names, Goal, [variable_names(Bindings)]] ].
+    [ 'Local variables ~w should not occur outside lambda expression: ~W'-[Names, Goal, [variable_names(Bindings)]] ].
+
+prolog:message(unused_parameter(Names, Goal, Bindings)) -->
+    [ 'Unused parameters ~w in lambda expression: ~W'-[Names, Goal, [variable_names(Bindings)]] ].
 
 lambdaize_args(G, A1, M, VL, Ex, A) :-
     check_singletons(G, h(VL, Ex, A1)),
