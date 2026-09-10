@@ -70,7 +70,7 @@ Decl :-
     necki.
 */
 
-Head :-
+head(Head) :-
     between(1, 9, Length),
     length(LList, Length),
     Head =.. [mapnlist, Goal|LList],
@@ -83,7 +83,7 @@ Head :-
 
 split_ht([H|T], H, T).
 
-Head :-
+head(Head) :-
     between(1, 9, Length),
     length(LList, Length),
     append(LList, [Goal], HeadL),

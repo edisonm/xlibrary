@@ -214,11 +214,17 @@ term_expansion_hb(File, Line, M, Head, Neck, Static, Right, NeckHead, NeckBody, 
     term_variables(Head, HVars),
     '$expand':mark_vars_non_fresh(HVars),
     expand_goal(M:Static, Expanded),
-    freeze(NeckHead,
-           ( NeckHead = A:B
-           ->freeze(A, freeze(B, track_deps(File, Line, M, NeckHead, Expanded)))
-           ; track_deps(File, Line, M, NeckHead, Expanded)
-           )),
+    ( ( var(NeckHead)
+      ; NeckHead = A:B,
+        ( var(A)
+        ; var(B)
+        )
+      )
+    ->copy_term(NeckHead-Expanded, NH-TrackBody),
+      TrackAfter = true
+    ; track_deps(File, Line, M, NeckHead, Expanded),
+      TrackAfter = false
+    ),
     HasCP = hascp(yes),
     term_variables(Head-Right, HNVarU),
     term_variables(Expanded, ExVarU),
@@ -316,7 +322,13 @@ term_expansion_hb(File, Line, M, Head, Neck, Static, Right, NeckHead, NeckBody, 
       fail
     ; true
     ),
-    phrase(( findall(Clause, member(t(Clause, _), ClausePIL)),
+    phrase(( findall(Pattern,
+                     ( member(t(Pattern, _), ClausePIL),
+                       ( TrackAfter == true
+                       ->track_deps(File, Line, M, NeckHead, (NH=NeckHead, TrackBody))
+                       ; true
+                       )
+                     )),
              findall(Clause,
                      ( \+ memberchk(Neck, [necks, necks(_, _), neckis, neckis(_, _)]),
                        Head \== '<declaration>',
@@ -353,16 +365,32 @@ check_has_neck(Body, Neck, Static, Right) :-
                             necks, necks(X, X), neckis, neckis(X, X)])
          )).
 
-term_expansion((Head :- Body), ClauseL) :-
+term_expansion((Head1 :- Body), ClauseL) :-
+    ( var(Head1)
+    ->( print_message(warning, format("Variable Head is no longer supported, wrap it with head/1", [])),
+        Head = Head1
+      )
+    ; Head1=head(Head),
+      var(Head)
+    ->true
+    ; Head = Head1
+    ),
     check_has_neck(Body, Neck, Static, Right),
     term_expansion_hb(Head, Neck, Static, Right, Head, NB, (Head :- NB), ClauseL).
-term_expansion((Head --> Body), ClauseL) :-
+term_expansion((Head1 --> Body), ClauseL) :-
     current_seq_lit(Body, Neck1, _, _),
     memberchk(Neck1, [neck, necki, necks, neckis]),
-    ( var(Head)
+    ( ( var(Head1)
+      ->( print_message(warning, format("Variable Head is no longer supported, wrap it with head//1", [])),
+          Head = Head1
+        )
+      ; Head1=head(Head),
+        var(Head)
+      )
     ->dcg_translate_rule((call(Head) --> Body), _, (H1 :- B), _),
       freeze(Head, resolve_calln(H1, H))
-    ; dcg_translate_rule((Head --> Body), _, (H :- B), _),
+    ; Head = Head1,
+      dcg_translate_rule((Head --> Body), _, (H :- B), _),
       H1 = H
     ),
     check_has_neck(B, Neck, Static, Right),
