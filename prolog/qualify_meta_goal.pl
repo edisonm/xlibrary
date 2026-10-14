@@ -60,7 +60,8 @@ meta_call_goal_arg(Caller, CMeta, Arg, Spec1, Spec) :-
     ( module_qualified(Spec1),
       ( nonvar(Arg),
         Arg = _:_
-      ; compound(CMeta),
+      ; var(Arg),
+        compound(CMeta),
         arg(N, CMeta, CSpec),
         module_qualified(CSpec),
         arg(N, Caller, CArg),
